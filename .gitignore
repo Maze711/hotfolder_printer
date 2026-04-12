@@ -5,3 +5,7 @@ output/
 *.log
 .DS_Store
 .env
+
+# Hotfolder runtime images
+hotfolders/**/input/*
+hotfolders/**/output/*

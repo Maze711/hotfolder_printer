@@ -217,4 +217,8 @@ def process_job(job):
 
     print(f"[SAVED] {output_path}")
 
-    print_image(output_path, config.get("printer_name"))
+    print_image(
+        output_path,
+        config.get("printer_name"),
+        config.get("print_settings", {}),
+    )
