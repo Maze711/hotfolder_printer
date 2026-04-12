@@ -2,6 +2,7 @@ from collections import deque
 import threading
 import time
 
+
 class PrintQueue:
     def __init__(self):
         self.queue = deque()

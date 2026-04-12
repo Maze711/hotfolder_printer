@@ -1,7 +1,7 @@
 import os
 import json
 from watcher import start_watcher
-from queue import PrintQueue
+from job_queue import PrintQueue
 from processor import process_job
 
 BASE_DIR = "hotfolders"

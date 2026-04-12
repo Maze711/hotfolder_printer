@@ -1,1 +1,17 @@
-{}
+{
+	"name": "landscape",
+	"template": "template.png",
+	"auto_detect_black_placeholder": true,
+	"black_threshold": 25,
+	"black_min_pixels": 2500,
+	"placement": {
+		"x": "8%",
+		"y": "13%",
+		"paper_width_mm": 150,
+		"paper_height_mm": 100,
+		"width_mm": 143.68,
+		"height_mm": 75.35,
+		"mode": "fill"
+	},
+	"printer_name": null
+}
