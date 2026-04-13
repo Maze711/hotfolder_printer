@@ -4,10 +4,15 @@ from watcher import start_watcher
 from job_queue import PrintQueue
 from processor import process_job
 
-BASE_DIR = "hotfolders"
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(APP_DIR)
+BASE_DIR = os.path.join(PROJECT_ROOT, "hotfolders")
 
 def load_presets():
     presets = []
+
+    if not os.path.isdir(BASE_DIR):
+        raise FileNotFoundError(f"Hotfolders directory not found: {BASE_DIR}")
 
     for folder in os.listdir(BASE_DIR):
         path = os.path.join(BASE_DIR, folder)
