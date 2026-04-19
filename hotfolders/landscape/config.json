@@ -8,12 +8,10 @@
 		"mode": "dialog"
 	},
 	"placement": {
-		"x": "8%",
-		"y": "13%",
-		"paper_width_mm": 152,
-		"paper_height_mm": 102,
-		"width_mm": 143.68,
-		"height_mm": 75.35,
+		"x": "8.02%",
+		"y": "9.63%",
+		"width": "83.96%",
+		"height": "71.70%",
 		"mode": "fill"
 	},
 	"printer_name": null

@@ -1,0 +1,31 @@
+{
+  "name": "polaroid",
+  "template": "template.png",
+  "images_per_template": 2,
+  "auto_detect_black_placeholder": true,
+  "black_threshold": 25,
+  "black_min_pixels": 50000,
+  "placeholder_tolerance_px": 20,
+  "use_black_guides_as_mask": true,
+  "black_mask_tolerance": 10,
+  "print_settings": {
+    "mode": "dialog"
+  },
+  "placements": [
+    {
+      "x": "4.96%",
+      "y": "7.63%",
+      "width": "39.89%",
+      "height": "71.29%",
+      "mode": "fill"
+    },
+    {
+      "x": "55.15%",
+      "y": "7.63%",
+      "width": "39.89%",
+      "height": "71.29%",
+      "mode": "fill"
+    }
+  ],
+  "printer_name": null
+}
