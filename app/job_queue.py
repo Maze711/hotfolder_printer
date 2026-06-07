@@ -2,6 +2,7 @@ from collections import deque
 import os
 import threading
 import time
+from . import system_state
 
 from logging_utils import get_logger
 
@@ -166,58 +167,68 @@ class PrintQueue:
         logger.info("[QUEUE] Worker started")
 
         while self.running:
-            job = self.get_job()
+        job = self.get_job()
 
-            if job:
-                file_path = job["file"]
-                try:
-                    if not os.path.exists(file_path):
-                        logger.error("[READINESS ERROR] File not found: %s", file_path)
+        if job:
+            file_path = job["file"]
+            # Soft‑pause handling – wait while the system_state flag is true
+            if system_state.is_paused():
+                logger.info("[QUEUE] Paused – waiting for resume")
+                while system_state.is_paused():
+                    time.sleep(0.5)
+
+            # Signal that the worker is about to process this job
+            logger.info("[QUEUE] Worker started processing %s", file_path)
+            try:
+                if not os.path.exists(file_path):
+                    logger.error("[READINESS ERROR] File not found: %s", file_path)
+                    continue
+
+                if not self._wait_until_file_ready(file_path):
+                    logger.error("[READINESS ERROR] Timed out waiting for file copy: %s", file_path)
+                    continue
+
+                if self._was_already_processed(file_path):
+                    logger.info("[QUEUE] Skipping already-processed file: %s", file_path)
+                    continue
+
+                required_images = self._required_images(job["config"])
+
+                if required_images > 1:
+                    _, pending_count = self._enqueue_pending_file(job["config"], file_path)
+                    batch_files = self._try_get_pending_batch(job["config"], required_images)
+
+                    if not batch_files:
+                        logger.error(
+                            "[BATCH ERROR] %s requires %s image(s) per template. Waiting (%s/%s).",
+                            job["config"].get("name", "hotfolder"),
+                            required_images,
+                            pending_count,
+                            required_images,
+                        )
                         continue
 
-                    if not self._wait_until_file_ready(file_path):
-                        logger.error("[READINESS ERROR] Timed out waiting for file copy: %s", file_path)
-                        continue
+                    # Log batch processing start
+                    logger.info("[QUEUE] Worker started processing batch of %d files for %s", len(batch_files), job["config"].get("name", "hotfolder"))
+                    batch_job = {
+                        "file": batch_files[0],
+                        "files": batch_files,
+                        "config": job["config"],
+                    }
+                    processor_func(batch_job)
 
-                    if self._was_already_processed(file_path):
-                        logger.info("[QUEUE] Skipping already-processed file: %s", file_path)
-                        continue
+                    for batch_file in batch_files:
+                        self._mark_processed(batch_file)
+                    continue
 
-                    required_images = self._required_images(job["config"])
-
-                    if required_images > 1:
-                        _, pending_count = self._enqueue_pending_file(job["config"], file_path)
-                        batch_files = self._try_get_pending_batch(job["config"], required_images)
-
-                        if not batch_files:
-                            logger.error(
-                                "[BATCH ERROR] %s requires %s image(s) per template. Waiting (%s/%s).",
-                                job["config"].get("name", "hotfolder"),
-                                required_images,
-                                pending_count,
-                                required_images,
-                            )
-                            continue
-
-                        batch_job = {
-                            "file": batch_files[0],
-                            "files": batch_files,
-                            "config": job["config"],
-                        }
-                        processor_func(batch_job)
-
-                        for batch_file in batch_files:
-                            self._mark_processed(batch_file)
-                        continue
-
-                    processor_func(job)
-                    self._mark_processed(file_path)
-                except Exception as e:
-                    logger.exception("[ERROR] Job failed for %s: %s", file_path, e)
-                finally:
-                    self._release_job(file_path)
-            else:
-                time.sleep(0.1)
+                processor_func(job)
+                self._mark_processed(file_path)
+            except Exception as e:
+                logger.exception("[ERROR] Job failed for %s: %s", file_path, e)
+            finally:
+                self._release_job(file_path)
+        else:
+            time.sleep(0.1)
 
     def start(self, processor_func):
         t = threading.Thread(target=self.worker, args=(processor_func,), name="print-queue-worker")

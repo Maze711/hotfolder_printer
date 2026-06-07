@@ -1,3 +1,5 @@
 watchdog>=4.0.0
+PyQt5>=5.15
+psutil>=5.9
 Pillow>=10.0.0
 pywin32>=306; platform_system == "Windows"

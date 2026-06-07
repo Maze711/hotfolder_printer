@@ -1,0 +1,52 @@
+Hotfolder‑Printer – How it works end‑to‑end
+
+Step | What the code does | Where it lives (line numbers)
+---|---|---
+1. Program start | main.py prints a banner and calls start_engine() | app/main.py (1‑9)
+2. Logging set‑up | setup_logging(PROJECT_ROOT) creates logs/hotfolder_printer.log and configures a logging handler | app/logging_utils.py (5‑30)
+3. Queue creation & worker thread | PrintQueue() builds a thread‑safe deque and starts a daemon worker that runs process_job | app/job_queue.py (12‑25, 222‑225)
+4. Load hot‑folder presets | load_presets() scans hotfolders/, reads each config.json, validates the JSON object, checks that the template file exists, creates input/ and output/ sub‑folders and enriches the config with absolute paths (base_path, template, input, output) | app/engine.py (43‑67)
+5. Start a file‑system watcher for each preset | start_watcher(preset["input"], preset, queue) creates a watchdog.Observer that watches the input folder (non‑recursive) | app/engine.py (104‑108) & app/watcher.py (44‑53)
+6. Enqueue any files already present | _enqueue_existing_input_files() walks the input folder and adds every existing image (*.jpg|*.jpeg|*.png) as a job | app/engine.py (70‑93)
+7. Detect new images | Handler._enqueue_if_image() is called on on_created, on_modified and on_moved. It builds a job dict (file, config) and pushes it to the queue | app/watcher.py (15‑24)
+8. Queue deduplication | PrintQueue.add_job() aborts if the absolute lower‑cased path is already in_queue or in_progress | app/job_queue.py (115‑124)
+9. Worker fetches a job | worker() pulls a job via get_job() | app/job_queue.py (126‑134)
+10. File‑readiness check | _wait_until_file_ready() repeatedly stats the file and reads a byte until the size/mtime stays stable (stable_checks = 3) or a timeout (20 s) fires | app/job_queue.py (82‑107)
+11. Skip already‑processed files | _was_already_processed() compares the current file signature with the last‑processed signature cache | app/job_queue.py (155‑164)
+12. Determine required image count | _required_images(config) reads images_per_template (must be > 0 and an int) | app/job_queue.py (40‑50)
+13. Batch handling for multi‑image templates | If required_images > 1 the job is queued in a folder‑specific pending list (_enqueue_pending_file). When enough images have arrived (_try_get_pending_batch) a batch job containing files: […] is passed to process_job | app/job_queue.py (66‑81, 188‑210)
+14. Process a job (processor.process_job) | 1. Resolve the list of image files (job["files"] or [job["file"]]). 2. Verify the template path exists. 3. Verify each input image exists. 4. Validate required image count against images_per_template | app/processor.py (351‑366)
+15. Load template | Opens the template image and converts it to RGBA | app/processor.py (367‑369)
+16. Resolve placements | _resolve_and_validate_placements() (or the single‑placement path) converts each placement's x, y, width, height – which may be numbers, percentages, or mm strings – into pixel coordinates relative to the template size. It checks: • All required fields are present. • Values are ≥ 0 and ≤ template dimensions. • No placement exceeds the template bounds. | app/processor.py (73‑138)
+17. Optional placeholder validation | If auto_detect_black_placeholder is true, _detect_black_placeholders() finds contiguous black regions on the template, then _validate_placeholder_against_config() checks that the count, size, and position of those regions match the resolved placements within placeholder_tolerance_px | app/processor.py (254‑292)
+18. Optional black‑guide mask | When use_black_guides_as_mask is true, _apply_black_guide_mask() makes any pixel inside a placement that is darker than black_threshold + black_mask_tolerance transparent, effectively "cutting out" black guide boxes | app/processor.py (294‑324)
+19. Choose which input image goes to which placement | *Single image* → duplicated for every placement. *Exact‑match count* → one‑to‑one mapping. Any other count raises an exception. | app/processor.py (375‑383)
+20. Compose each photo | _compose_photo() uses Pillow: • mode="fill" → ImageOps.fit (crop to fill). • mode="fit" → ImageOps.contain (letterbox). Result is converted to RGBA | app/processor.py (243‑252)
+21. Paste photos onto a transparent underlay | For each placement the composed photo is centered inside the region and pasted onto underlay | app/processor.py (384‑393)
+22. Composite with the (masked) template | Image.alpha_composite(underlay, masked_template) blends the photos below the original template artwork, preserving any non‑black graphics | app/processor.py (394‑396)
+23. Write the final image | output_dir (from config) is created if missing, the file name is built (_build_output_filename) and the final JPEG/PNG is saved | app/processor.py (401‑405)
+24. Print the image | print_image(output_path, printer_name, print_settings) is called. • If printer_name is set, win32print.SetDefaultPrinter attempts to change the default printer (warnings on failure). • mode defaults to "dialog"; "silent" skips the print dialog. • The actual print is done via win32api.ShellExecute(..., "print", ...) | app/printer.py (9‑43)
+25. Job bookkeeping | After a job (or batch) finishes, the queue marks each file as processed (_mark_processed) and removes it from in_progress. The worker then loops for the next job | app/job_queue.py (190‑219)
+26. Graceful shutdown | Ctrl‑C triggers KeyboardInterrupt; the engine stops the watchers and joins their threads | app/engine.py (118‑127)
+
+Key Validation Points (the "must‑do" checks)
+
+Validation | Where it happens | What it guarantees
+---|---|---
+Config JSON shape | _validate_and_enrich_preset() | template present, config.json is a dict, template file exists.
+Image‑count per template | _required_images() & _validate_required_image_count() | images_per_template > 0, actual number of input files matches the config.
+Placement fields | _resolve_and_validate_placement() | All x/y/width/height (or their mm equivalents) are supplied, parsable as numbers or percentages, and stay inside the template dimensions.
+Positive dimensions | Same function | width > 0, height > 0, x,y ≥ 0.
+No overflow | Same function | x+width ≤ template_width, y+height ≤ template_height.
+Black placeholder detection (optional) | _validate_placeholder_against_config() | The number of detected black blobs matches the number of placements and each blob’s bounding box is within placeholder_tolerance_px.
+Black guide mask (optional) | _apply_black_guide_mask() | Pixels that are sufficiently black inside a placement become transparent, preventing the black guide from appearing on the printed photo.
+File readiness | _wait_until_file_ready() | The file is fully copied (size/mtime stable) before processing.
+Duplicate / already‑processed avoidance | PrintQueue.add_job(), _was_already_processed() | The same file is never processed twice unless it changes.
+Batch assembly for multi‑image templates | _enqueue_pending_file() & _try_get_pending_batch() | A template that needs N images will wait until N distinct files have arrived in the same folder before processing.
+Print settings validation | printer.print_image() | Mode must be "dialog" or "silent"; otherwise a ValueError is raised.
+
+Overall data flow (simplified diagram)
+
+main.py → engine.load_presets() → start watchers → watchdog events → queue.add_job() → worker → processor.process_job() → compose → save → printer.print_image()
+
+All of the above logic is driven by the core modules you just examined: engine, watcher, job_queue, processor, printer, and logging_utils. The application continuously watches one or more input directories, validates configuration and placement data, optionally checks for black placeholders, composites photos onto the template, saves the result, and sends it to a Windows printer.
