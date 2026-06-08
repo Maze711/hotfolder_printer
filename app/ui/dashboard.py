@@ -14,6 +14,10 @@ from PyQt5 import QtWidgets, QtCore
 from .status_panel import StatusPanel
 from .queue_table import QueueTable
 from .log_viewer import LogViewer
+from .job_preview import JobPreviewPanel
+from .template_panel import TemplatePanel
+from .job_details_panel import JobDetailsPanel
+from .operator_controls_panel import OperatorControlsPanel
 
 from ..services.log_service import LogService
 from ..services.queue_service import QueueService
@@ -23,7 +27,7 @@ class Dashboard(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Hotfolder Printer – Monitoring Dashboard")
-        self.resize(1100, 720)
+        self.resize(1400, 900)
         self._setup_ui()
         self._setup_services()
         self._connect_signals()
@@ -41,9 +45,25 @@ class Dashboard(QtWidgets.QMainWindow):
         self.status_panel = StatusPanel()
         layout.addWidget(self.status_panel)
 
-        # Job table (takes most vertical space)
+        # Main body panels (Queue, Job Preview, Template)
         self.job_table = QueueTable()
-        layout.addWidget(self.job_table, stretch=3)
+        self.job_preview = JobPreviewPanel()
+        self.template_panel = TemplatePanel()
+        body_widget = QtWidgets.QWidget()
+        body_layout = QtWidgets.QHBoxLayout(body_widget)
+        body_layout.setSpacing(5)
+        body_layout.addWidget(self.job_table, stretch=3)
+        body_layout.addWidget(self.job_preview, stretch=2)
+        body_layout.addWidget(self.template_panel, stretch=2)
+        layout.addWidget(body_widget, stretch=3)
+
+        # Selected job details panel
+        self.job_details = JobDetailsPanel()
+        layout.addWidget(self.job_details)
+
+        # Operator controls panel
+        self.operator_controls = OperatorControlsPanel(self)
+        layout.addWidget(self.operator_controls)
 
         # Log viewer (bottom)
         self.log_viewer = LogViewer()
@@ -53,17 +73,20 @@ class Dashboard(QtWidgets.QMainWindow):
         toolbar = QtWidgets.QToolBar()
         self.addToolBar(toolbar)
         self.pause_action = QtWidgets.QAction("Pause Queue", self)
-        self.resume_action = QtWidgets.QAction("Resume Queue", self)
         self.refresh_action = QtWidgets.QAction("Refresh", self)
+        self.resume_action = QtWidgets.QAction("Resume Queue", self)
+        self.clear_queue_action = QtWidgets.QAction("Clear Queue", self)
         toolbar.addAction(self.pause_action)
         toolbar.addAction(self.resume_action)
         toolbar.addSeparator()
         toolbar.addAction(self.refresh_action)
+        toolbar.addAction(self.clear_queue_action)
 
         # Connect button clicks
         self.pause_action.triggered.connect(self._pause_queue)
         self.resume_action.triggered.connect(self._resume_queue)
         self.refresh_action.triggered.connect(self._refresh)
+        self.clear_queue_action.triggered.connect(self._clear_queue)
 
     # --------------------------------------------------------------------- Services
     def _setup_services(self):
@@ -105,14 +128,17 @@ class Dashboard(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "Error", "Failed to resume the queue.")
 
     def _refresh(self):
-        # Clear log view and restart tailing from current end of file
+        """Clear log view and restart services."""
         self.log_viewer.clear()
-        # Restart log service (re‑open file, reset cursor)
         self.log_service._timer.stop()
         self.log_service.start()
-        # Force a filesystem refresh to pick up any external changes
         self.queue_service.refresh()
         QtWidgets.QMessageBox.information(self, "Refresh", "Dashboard refreshed.")
+
+    def _clear_queue(self):
+        """Remove all jobs from the UI queue view."""
+        self.queue_service.clear()
+        QtWidgets.QMessageBox.information(self, "Clear Queue", "Job queue cleared.")
 
 # --------------------------------------------------------------------- entry point
 def main():

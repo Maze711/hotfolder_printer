@@ -21,8 +21,13 @@ class StatusPanel(QtWidgets.QWidget):
         layout.setSpacing(20)
 
         self.printer_label = QtWidgets.QLabel("Printer: –")
+        self.hotfolder_label = QtWidgets.QLabel("Hotfolder: –")
+        self.queue_label = QtWidgets.QLabel("Queue: 0 jobs")
+        self.mode_label = QtWidgets.QLabel("Mode: –")
         self.preset_label  = QtWidgets.QLabel("Active preset: –")
-        self.counters_label = QtWidgets.QLabel("Pending 0 | Processing 0 | Completed 0")
+        self.template_label = QtWidgets.QLabel("Active Template: –")
+        self.last_print_label = QtWidgets.QLabel("Last Print: –")
+        self.counters_label = QtWidgets.QLabel("Pending: 0 | Processing: 0 | Done: 0 | Failed: 0")
 
         # Make the counters bold for visibility
         font = self.counters_label.font()
@@ -30,7 +35,12 @@ class StatusPanel(QtWidgets.QWidget):
         self.counters_label.setFont(font)
 
         layout.addWidget(self.printer_label)
+        layout.addWidget(self.hotfolder_label)
+        layout.addWidget(self.queue_label)
+        layout.addWidget(self.mode_label)
         layout.addWidget(self.preset_label)
+        layout.addWidget(self.template_label)
+        layout.addWidget(self.last_print_label)
         layout.addStretch()
         layout.addWidget(self.counters_label)
 
@@ -52,7 +62,9 @@ class StatusPanel(QtWidgets.QWidget):
 
     @QtCore.pyqtSlot(int, int, int)
     def update_counters(self, pending: int, processing: int, completed: int):
-        """Refresh the numeric counters shown on the right side."""
+        """Refresh the numeric counters shown on the right side.
+        The UI expects a "Done" column and a placeholder for failed jobs.
+        """
         self.counters_label.setText(
-            f"Pending {pending} | Processing {processing} | Completed {completed}"
+            f"Pending: {pending} | Processing: {processing} | Done: {completed} | Failed: 0"
         )
