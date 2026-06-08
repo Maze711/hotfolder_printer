@@ -17,6 +17,14 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir
 MAX_JOBS = 200
 
 class QueueService(QtCore.QObject):
+    def clear(self):
+        """Clear all jobs and reset counters to zero.
+        This is used by the UI "Clear Queue" action to empty the table.
+        """
+        self._jobs.clear()
+        # Emit an empty job list and zero counters
+        self.jobs_updated.emit({})
+        self.counters_updated.emit(0, 0, 0)
     # Signals emitted to UI
     jobs_updated = QtCore.pyqtSignal(dict)            # {filepath: {"status": str, "ts": str}}
     counters_updated = QtCore.pyqtSignal(int, int, int)  # pending, processing, completed

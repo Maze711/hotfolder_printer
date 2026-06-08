@@ -13,7 +13,9 @@ class LogViewer(QtWidgets.QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
-        self.setMaximumBlockCount(1000)  # keep memory bounded
+                # Limit maximum block count if the widget supports it (e.g., QPlainTextEdit)
+        if hasattr(self, "setMaximumBlockCount"):
+            self.setMaximumBlockCount(1000)   # keep memory bounded
         # monospace font for log readability
         font = QtGui.QFont("Courier", 9)
         self.setFont(font)
