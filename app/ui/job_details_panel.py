@@ -30,3 +30,8 @@ class JobDetailsPanel(QtWidgets.QWidget):
         tmpl = os.path.basename(template_path) if template_path else "—"
         self.labels["Template"].setText(f"Template: {tmpl}")
         self.labels["Added"].setText(f"Added: {added}")
+
+    def set_template(self, template_path: str | None):
+        """Update only the Template field without changing other fields."""
+        tmpl = os.path.basename(template_path) if template_path else "—"
+        self.labels["Template"].setText(f"Template: {tmpl}")

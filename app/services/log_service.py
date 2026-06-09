@@ -14,14 +14,16 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir
 LOG_PATH = os.path.join(PROJECT_ROOT, "logs", "hotfolder_printer.log")
 
 class LogService(QtCore.QObject):
-# Signals emitted for UI consumption
-  new_log_line    = QtCore.pyqtSignal(str)                     # raw line
-  job_added       = QtCore.pyqtSignal(str)                     # input file path
-  job_processing  = QtCore.pyqtSignal(str)                     # file path started processing
-  job_completed   = QtCore.pyqtSignal(str)                     # output path (saved)
-  job_ready       = QtCore.pyqtSignal(str)                     # output path ready for review
-  printer_update  = QtCore.pyqtSignal(str, str)                # printer name, mode/status
-  preset_loaded   = QtCore.pyqtSignal(str)                     # preset folder path
+    # Signals emitted for UI consumption
+    new_log_line        = QtCore.pyqtSignal(str)                     # raw line
+    job_added           = QtCore.pyqtSignal(str)                     # input file path
+    job_processing      = QtCore.pyqtSignal(str)                     # file path started processing
+    job_completed       = QtCore.pyqtSignal(str)                     # output path (saved)
+    job_ready           = QtCore.pyqtSignal(str)                     # output path ready for review
+    job_print_started   = QtCore.pyqtSignal(str)                     # output path – print initiated
+    job_print_completed = QtCore.pyqtSignal(str)                     # output path – print submitted
+    printer_update      = QtCore.pyqtSignal(str, str)                # printer name, mode/status
+    preset_loaded       = QtCore.pyqtSignal(str)                     # preset folder path
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -31,11 +33,13 @@ class LogService(QtCore.QObject):
         self._file = None
         self._position = 0
         # Compile regexes once for speed
-        self._re_job_added      = re.compile(r"\[QUEUE\] Job added: (.+)$")
+        self._re_job_added       = re.compile(r"\[QUEUE\] Job added: (.+)$")
         self._re_processing      = re.compile(r"\[QUEUE\] Worker started processing (.+)$")
-        self._re_saved          = re.compile(r"\[SAVED\] (.+)$")
-        self._re_print          = re.compile(r"\[PRINT\] Preparing print job: (.+) \(mode=(.+)\)")
-        self._re_loaded         = re.compile(r"\[LOADED\] (.+)$")
+        self._re_saved           = re.compile(r"\[SAVED\] (.+)$")
+        self._re_print           = re.compile(r"\[PRINT\] Preparing print job: (.+) \(mode=(.+)\)")
+        self._re_print_started   = re.compile(r"\[PRINT\] Started (.+)$")
+        self._re_print_completed = re.compile(r"\[PRINT\] Completed (.+)$")
+        self._re_loaded          = re.compile(r"\[LOADED\] (.+)$")
 
     def start(self):
         """Open the log file and start the polling timer.
@@ -85,6 +89,14 @@ class LogService(QtCore.QObject):
         m = self._re_print.search(line)
         if m:
             self.printer_update.emit(m.group(1), m.group(2))
+            return
+        m = self._re_print_started.search(line)
+        if m:
+            self.job_print_started.emit(m.group(1))
+            return
+        m = self._re_print_completed.search(line)
+        if m:
+            self.job_print_completed.emit(m.group(1))
             return
         m = self._re_loaded.search(line)
         if m:

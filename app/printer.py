@@ -1,7 +1,7 @@
 import win32api
 import win32print
 import os
-from logging_utils import get_logger
+from .logging_utils import get_logger
 
 
 logger = get_logger(__name__)
@@ -26,6 +26,7 @@ def print_image(file_path, printer_name=None, print_settings=None):
             raise ValueError("print_settings.mode must be either 'dialog' or 'silent'")
 
         logger.info("[PRINT] Preparing print job: %s (mode=%s)", file_path, mode)
+        logger.info("[PRINT] Started %s", file_path)
 
         win32api.ShellExecute(
             0,
@@ -40,6 +41,8 @@ def print_image(file_path, printer_name=None, print_settings=None):
             logger.info("[PRINT] Print dialog opened")
         else:
             logger.info("[PRINT] Job sent successfully")
+
+        logger.info("[PRINT] Completed %s", file_path)
 
     except Exception as e:
         logger.exception("[PRINTER ERROR] %s", e)
