@@ -8,6 +8,10 @@ not modify the backend logic other than toggling the soft‑pause flag via
 
 import sys, os, json
 from PyQt5 import QtWidgets, QtCore
+from PIL import Image
+
+from ..placement.renderer import render_preview
+from ..placement.validator import _resolve_and_validate_placements
 
 # Local imports – the UI package lives under ``app.ui`` and the services
 # under ``app.services``.
@@ -240,6 +244,41 @@ class Dashboard(QtWidgets.QMainWindow):
         self.queue_service.approve_job(file_path)
         # Load config for printer settings
         config = self._load_config_for_output(file_path)
+        # Re-render with saved adjustments if any
+        placements_cfg = config.get("placements") or (
+            [config["placement"]] if config.get("placement") else []
+        ) if config else []
+        has_adjustments = False
+        slot_adjustments = []
+        for p in placements_cfg:
+            ed = p.get("editor", {}) if isinstance(p, dict) else {}
+            slot_adjustments.append({
+                "x_offset": ed.get("x_offset", 0),
+                "y_offset": ed.get("y_offset", 0),
+                "scale": ed.get("scale", 1.0),
+                "rotation": ed.get("rotation", 0),
+            })
+            if ed.get("x_offset", 0) != 0 or ed.get("y_offset", 0) != 0 or \
+               ed.get("scale", 1.0) != 1.0 or ed.get("rotation", 0) != 0:
+                has_adjustments = True
+        if has_adjustments and config:
+            try:
+                template_path = config.get("template")
+                input_path = file_path.replace("\\output\\", "\\input\\")
+                if os.path.isfile(template_path) and os.path.isfile(input_path):
+                    tmpl = Image.open(template_path).convert("RGBA")
+                    photo = Image.open(input_path).convert("RGBA")
+                    placements = _resolve_and_validate_placements(config, tmpl.size)
+                    adjusted = render_preview(
+                        tmpl, photo, placements, config, slot_adjustments
+                    )
+                    adjusted.convert("RGB").save(file_path)
+                    logger.info(
+                        "[APPROVAL] Re-rendered with adjustments: %s",
+                        slot_adjustments,
+                    )
+            except Exception as exc:
+                logger.exception("[APPROVAL] Re-render failed, printing original: %s", exc)
         # Print the file (print lifecycle signals update status to Printing → Completed)
         success = self.printer_service.print_file(file_path, config)
         if success:
