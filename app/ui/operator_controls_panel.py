@@ -1,7 +1,7 @@
-"""Operator control buttons placeholder.
+"""Operator control buttons.
 
 Buttons are wired to the Dashboard's existing actions where possible.
-Unimplemented actions simply display an informational message.
+New Approve/Reject buttons are added for the preview workflow.
 """
 
 from PyQt5 import QtWidgets, QtCore
@@ -36,3 +36,13 @@ class OperatorControlsPanel(QtWidgets.QWidget):
                 btn.clicked.connect(lambda _, t=txt: QtWidgets.QMessageBox.information(self, "Info", f"{t} clicked (placeholder)"))
             row2.addWidget(btn)
         layout.addLayout(row2)
+
+        # Third row – approval workflow
+        row3 = QtWidgets.QHBoxLayout()
+        approve_btn = QtWidgets.QPushButton("Approve")
+        approve_btn.clicked.connect(self.dashboard._approve_selected)
+        reject_btn = QtWidgets.QPushButton("Reject")
+        reject_btn.clicked.connect(self.dashboard._reject_selected)
+        row3.addWidget(approve_btn)
+        row3.addWidget(reject_btn)
+        layout.addLayout(row3)

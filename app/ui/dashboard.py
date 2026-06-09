@@ -6,7 +6,7 @@ not modify the backend logic other than toggling the soft‑pause flag via
 ``system_state.json``.
 """
 
-import sys
+import sys, os, json
 from PyQt5 import QtWidgets, QtCore
 
 # Local imports – the UI package lives under ``app.ui`` and the services
@@ -28,8 +28,12 @@ class Dashboard(QtWidgets.QMainWindow):
         super().__init__()
         self.setWindowTitle("Hotfolder Printer – Monitoring Dashboard")
         self.resize(1400, 900)
+        self._jobs = {}
+
         self._setup_ui()
+
         self._setup_services()
+
         self._connect_signals()
         self._start()
 
@@ -103,16 +107,97 @@ class Dashboard(QtWidgets.QMainWindow):
         # Log → QueueService (job lifecycle events)
         self.log_service.job_added.connect(self.queue_service.handle_job_added)
         self.log_service.job_processing.connect(self.queue_service.handle_job_processing)
-        self.log_service.job_completed.connect(self.queue_service.handle_job_completed)
+        # Use job_ready for review workflow instead of job_completed
+        self.log_service.job_ready.connect(self.queue_service.handle_job_ready)
 
         # QueueService → UI (table & counters)
-        self.queue_service.jobs_updated.connect(self.job_table.refresh)
+        self.queue_service.jobs_updated.connect(self._update_jobs)
         self.queue_service.counters_updated.connect(self.status_panel.update_counters)
+
+        # Table selection changes
+        self.job_table.itemSelectionChanged.connect(self._on_job_selected)
+
+    def _update_jobs(self, jobs: dict):
+        """Store the latest job dict and refresh the table view."""
+        self._jobs = jobs
+        self.job_table.refresh(jobs)
+
+    def _on_job_selected(self):
+        """Handle user selection of a job in the table.
+
+        Updates the preview panel and details panel with information about the
+        selected job.
+        """
+        selected_items = self.job_table.selectedItems()
+        if not selected_items:
+            return
+        # Assuming selection is per row, first column contains the file path
+        file_path_item = selected_items[0]
+        file_path = file_path_item.text()
+        # Update preview
+        self.job_preview.set_job(file_path)
+        # Retrieve status and timestamp from stored jobs dict
+        info = self._jobs.get(file_path, {})
+        status = info.get("status", "—")
+        added = info.get("ts", "—")
+        # Determine template path (if any)
+        template_path = None
+        try:
+            template_path = self.job_preview._find_template_for_image(file_path)
+        except Exception:
+            template_path = None
+        # Update details panel
+        self.job_details.set_job(file_path, status, template_path, added)
+
+    def _load_config_for_output(self, output_path: str) -> dict | None:
+        """Load the preset ``config.json`` for a given output file.
+
+        The output file resides in ``<preset>/output/``; the config file is in the
+        preset root directory.
+        """
+        preset_dir = os.path.abspath(os.path.join(output_path, os.pardir, os.pardir))
+        config_path = os.path.join(preset_dir, "config.json")
+        if not os.path.isfile(config_path):
+            return None
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    def _approve_selected(self):
+        """Approve the currently selected job and trigger printing."""
+        selected_items = self.job_table.selectedItems()
+        if not selected_items:
+            QtWidgets.QMessageBox.information(self, "Approve", "No job selected.")
+            return
+        file_path = selected_items[0].text()
+        # Update status to Approved
+        self.queue_service.approve_job(file_path)
+        # Load config for printer settings
+        config = self._load_config_for_output(file_path)
+        # Print the file
+        success = self.printer_service.print_file(file_path, config)
+        if success:
+            QtWidgets.QMessageBox.information(self, "Approve", "Job printed successfully.")
+        else:
+            QtWidgets.QMessageBox.warning(self, "Approve", "Failed to print job.")
+
+    def _reject_selected(self):
+        """Reject the currently selected job – removes it from processing."""
+        selected_items = self.job_table.selectedItems()
+        if not selected_items:
+            QtWidgets.QMessageBox.information(self, "Reject", "No job selected.")
+            return
+        file_path = selected_items[0].text()
+        self.queue_service.reject_job(file_path)
+        QtWidgets.QMessageBox.information(self, "Reject", "Job rejected and removed from queue.")
 
     def _start(self):
         # Start background timers / polling
         self.log_service.start()
         self.queue_service.start_periodic_refresh()
+
 
     # --------------------------------------------------------------------- Toolbar actions
     def _pause_queue(self):

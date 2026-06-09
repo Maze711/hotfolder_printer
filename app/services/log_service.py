@@ -14,13 +14,14 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir
 LOG_PATH = os.path.join(PROJECT_ROOT, "logs", "hotfolder_printer.log")
 
 class LogService(QtCore.QObject):
-    # Signals emitted for UI consumption
-    new_log_line    = QtCore.pyqtSignal(str)                     # raw line
-    job_added       = QtCore.pyqtSignal(str)                     # input file path
-    job_processing  = QtCore.pyqtSignal(str)                     # file path started processing
-    job_completed   = QtCore.pyqtSignal(str)                     # output path (saved)
-    printer_update  = QtCore.pyqtSignal(str, str)                # printer name, mode/status
-    preset_loaded   = QtCore.pyqtSignal(str)                     # preset folder path
+# Signals emitted for UI consumption
+  new_log_line    = QtCore.pyqtSignal(str)                     # raw line
+  job_added       = QtCore.pyqtSignal(str)                     # input file path
+  job_processing  = QtCore.pyqtSignal(str)                     # file path started processing
+  job_completed   = QtCore.pyqtSignal(str)                     # output path (saved)
+  job_ready       = QtCore.pyqtSignal(str)                     # output path ready for review
+  printer_update  = QtCore.pyqtSignal(str, str)                # printer name, mode/status
+  preset_loaded   = QtCore.pyqtSignal(str)                     # preset folder path
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -78,7 +79,8 @@ class LogService(QtCore.QObject):
             return
         m = self._re_saved.search(line)
         if m:
-            self.job_completed.emit(m.group(1))
+            # Emit a signal when a job is saved and ready for review
+            self.job_ready.emit(m.group(1))
             return
         m = self._re_print.search(line)
         if m:

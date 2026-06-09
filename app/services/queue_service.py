@@ -46,8 +46,17 @@ class QueueService(QtCore.QObject):
         self._set_job(path, "Processing")
 
     @QtCore.pyqtSlot(str)
-    def handle_job_completed(self, path: str):
-        self._set_job(path, "Completed")
+    def handle_job_ready(self, path: str):
+        """Mark job as pending review when output is ready."""
+        self._set_job(path, "Pending Review")
+
+    @QtCore.pyqtSlot(str)
+    def reject_job(self, path: str):
+        """Mark job as rejected and remove it from the UI queue."""
+        self._set_job(path, "Rejected")
+
+
+
 
     # ------------------------------------------------------------------ internal helpers
     def _set_job(self, path: str, status: str):
