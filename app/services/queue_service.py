@@ -46,8 +46,32 @@ class QueueService(QtCore.QObject):
         self._set_job(path, "Processing")
 
     @QtCore.pyqtSlot(str)
-    def handle_job_completed(self, path: str):
+    def handle_job_ready(self, path: str):
+        """Mark job as pending review when output is ready."""
+        self._set_job(path, "Pending Review")
+
+    @QtCore.pyqtSlot(str)
+    def handle_print_started(self, path: str):
+        """Mark job as printing when the print job is initiated."""
+        self._set_job(path, "Printing")
+
+    @QtCore.pyqtSlot(str)
+    def handle_print_completed(self, path: str):
+        """Mark job as completed when the print job has been submitted."""
         self._set_job(path, "Completed")
+
+    @QtCore.pyqtSlot(str)
+    def approve_job(self, path: str):
+        """Mark job as approved (set status to Approved)."""
+        self._set_job(path, "Approved")
+
+    @QtCore.pyqtSlot(str)
+    def reject_job(self, path: str):
+        """Mark job as rejected, remove from dict (UI hides it), and emit updates."""
+        self._set_job(path, "Rejected")
+        self._jobs.pop(path, None)
+        self._emit_updates()
+
 
     # ------------------------------------------------------------------ internal helpers
     def _set_job(self, path: str, status: str):
@@ -88,8 +112,9 @@ class QueueService(QtCore.QObject):
                     if full not in self._jobs:
                         self._set_job(full, "Pending")
                 elif "output" in root:
-                    # Mark as completed regardless of prior state
-                    self._set_job(full, "Completed")
+                    # Only mark as completed if not already tracked (e.g. Pending Review)
+                    if full not in self._jobs:
+                        self._set_job(full, "Completed")
         # No extra emit needed – _set_job already emitted
 
     def start_periodic_refresh(self):
